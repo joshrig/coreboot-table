@@ -1,6 +1,6 @@
 #![no_std]
 
-use core::{mem, ptr, slice};
+use core::{mem, ptr};
 
 pub use self::cb64::Cb64;
 pub use self::mapper::{Mapper, PhysicalAddress, VirtualAddress};
@@ -43,11 +43,12 @@ pub fn tables<F, M>(mut callback: F, mapper: &mut M) -> Result<(), &'static str>
                 if header.is_valid() {
                     unsafe { mapper.unmap(header_address)? };
 
+                    let mut result = Ok(());
+
                     let table_physical = PhysicalAddress(header_physical.0 + i + header.header_bytes as usize);
                     let table_size = header.table_bytes as usize;
                     let table_address = unsafe { mapper.map(table_physical, table_size)? };
                     let table_entries = header.table_entries as usize;
-
                     {
                         let mut j = 0;
                         let mut entries = 0;
@@ -55,7 +56,7 @@ pub fn tables<F, M>(mut callback: F, mapper: &mut M) -> Result<(), &'static str>
                             let record_address = table_address.0 + j;
                             let record = unsafe { &*(record_address as *const Record) };
 
-                            callback(match record.kind {
+                            result = callback(match record.kind {
                                 RecordKind::Framebuffer => Table::Framebuffer(
                                     unsafe { &*(record_address as *const Framebuffer) }
                                 ),
@@ -65,6 +66,10 @@ pub fn tables<F, M>(mut callback: F, mapper: &mut M) -> Result<(), &'static str>
                                 _ => Table::Other(record),
                             });
 
+                            if ! result.is_ok() {
+                                break;
+                            }
+
                             j += record.size as usize;
                             entries += 1;
                         }
@@ -72,7 +77,7 @@ pub fn tables<F, M>(mut callback: F, mapper: &mut M) -> Result<(), &'static str>
 
                     unsafe { mapper.unmap(table_address)? };
 
-                    return Ok(());
+                    return result;
                 }
 
                 i += 4;
