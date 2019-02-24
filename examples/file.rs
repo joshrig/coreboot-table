@@ -1,6 +1,5 @@
 extern crate coreboot_table;
 
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::slice;
