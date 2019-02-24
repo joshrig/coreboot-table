@@ -5,12 +5,14 @@ use core::{mem, ptr};
 pub use self::cb64::Cb64;
 pub use self::mapper::{Mapper, PhysicalAddress, VirtualAddress};
 
+use self::forward::Forward;
 use self::framebuffer::Framebuffer;
 use self::header::Header;
 use self::memory::Memory;
 use self::record::{Record, RecordKind};
 
 mod cb64;
+mod forward;
 mod framebuffer;
 mod header;
 mod mapper;
@@ -24,69 +26,107 @@ pub enum Table<'a> {
     Other(&'a Record),
 }
 
-pub fn tables<F, M>(mut callback: F, mapper: &mut M) -> Result<(), &'static str>
-    where F: FnMut(Table) -> Result<(), &'static str>, M: Mapper
-{
-    let page_size = mapper.page_size();
+pub fn tables<F: FnMut(Table) -> Result<(), &'static str>, M: Mapper>(callback: F, mapper: &mut M) -> Result<(), &'static str> {
+    let mut env = Env {
+        callback,
+        mapper
+    };
+    env.tables()
+}
 
-    // First, we need to find the header somewhere in low memory
-    let low_memory = 1024 * 1024;
-    for header_page in 0..(low_memory / page_size) {
-        let header_physical = PhysicalAddress(header_page * page_size);
-        let header_address = unsafe { mapper.map(header_physical, page_size)? };
+struct Env<'m, F: FnMut(Table) -> Result<(), &'static str>, M: Mapper>  {
+    callback: F,
+    mapper: &'m mut M,
+}
 
+impl<'m, F: FnMut(Table) -> Result<(), &'static str>, M: Mapper> Env<'m, F, M> {
+    fn forward(&mut self, forward: &Forward) -> Result<(), &'static str> {
+        let page_size = self.mapper.page_size();
+
+        let header_physical = PhysicalAddress(forward.forward as usize);
+        let header_address = unsafe { self.mapper.map(header_physical, page_size)? };
+
+        let header = unsafe { ptr::read((header_address.0) as *const Header) };
+
+        unsafe { self.mapper.unmap(header_address)? };
+
+        if header.is_valid() {
+            self.header(header, PhysicalAddress(header_physical.0))
+        } else {
+            Err("Forward header invalid")
+        }
+    }
+
+    fn header(&mut self, header: Header, header_physical: PhysicalAddress) -> Result<(), &'static str> {
+        let mut result = Ok(());
+
+        let table_physical = PhysicalAddress(header_physical.0 + header.header_bytes as usize);
+        let table_size = header.table_bytes as usize;
+        let table_address = unsafe { self.mapper.map(table_physical, table_size)? };
+        let table_entries = header.table_entries as usize;
         {
             let mut i = 0;
-            while i + mem::size_of::<Header>() <= page_size {
-                let header = unsafe { ptr::read((header_address.0 + i) as *const Header) };
+            let mut entries = 0;
+            while i + mem::size_of::<Record>() <= table_size && entries < table_entries {
+                let record_address = table_address.0 + i;
+                let record = unsafe { &*(record_address as *const Record) };
 
-                if header.is_valid() {
-                    unsafe { mapper.unmap(header_address)? };
+                result = match record.kind {
+                    RecordKind::Forward => {
+                        let forward = unsafe { &*(record_address as *const Forward) };
+                        self.forward(forward)
+                    },
+                    RecordKind::Framebuffer => (self.callback)(Table::Framebuffer(
+                        unsafe { &*(record_address as *const Framebuffer) }
+                    )),
+                    RecordKind::Memory => (self.callback)(Table::Memory(
+                        unsafe { &*(record_address as *const Memory) }
+                    )),
+                    _ => (self.callback)(Table::Other(record)),
+                };
 
-                    let mut result = Ok(());
-
-                    let table_physical = PhysicalAddress(header_physical.0 + i + header.header_bytes as usize);
-                    let table_size = header.table_bytes as usize;
-                    let table_address = unsafe { mapper.map(table_physical, table_size)? };
-                    let table_entries = header.table_entries as usize;
-                    {
-                        let mut j = 0;
-                        let mut entries = 0;
-                        while j + mem::size_of::<Record>() <= table_size && entries < table_entries {
-                            let record_address = table_address.0 + j;
-                            let record = unsafe { &*(record_address as *const Record) };
-
-                            result = callback(match record.kind {
-                                RecordKind::Framebuffer => Table::Framebuffer(
-                                    unsafe { &*(record_address as *const Framebuffer) }
-                                ),
-                                RecordKind::Memory => Table::Memory(
-                                    unsafe { &*(record_address as *const Memory) }
-                                ),
-                                _ => Table::Other(record),
-                            });
-
-                            if ! result.is_ok() {
-                                break;
-                            }
-
-                            j += record.size as usize;
-                            entries += 1;
-                        }
-                    }
-
-                    unsafe { mapper.unmap(table_address)? };
-
-                    return result;
+                if ! result.is_ok() {
+                    break;
                 }
 
-                i += 4;
+                i += record.size as usize;
+                entries += 1;
             }
         }
 
-        unsafe { mapper.unmap(header_address)? };
+        unsafe { self.mapper.unmap(table_address)? };
+
+        return result;
     }
 
-    // Header not found
-    Err("Header not found")
+    pub fn tables(&mut self) -> Result<(), &'static str> {
+        let page_size = self.mapper.page_size();
+
+        // First, we need to find the header somewhere in low memory
+        let low_memory = 1024 * 1024;
+        for header_page in 0..(low_memory / page_size) {
+            let header_physical = PhysicalAddress(header_page * page_size);
+            let header_address = unsafe { self.mapper.map(header_physical, page_size)? };
+
+            {
+                let mut i = 0;
+                while i + mem::size_of::<Header>() <= page_size {
+                    let header = unsafe { ptr::read((header_address.0 + i) as *const Header) };
+
+                    if header.is_valid() {
+                        unsafe { self.mapper.unmap(header_address)? };
+
+                        return self.header(header, PhysicalAddress(header_physical.0 + i));
+                    }
+
+                    i += 4;
+                }
+            }
+
+            unsafe { self.mapper.unmap(header_address)? };
+        }
+
+        // Header not found
+        Err("Header not found")
+    }
 }
