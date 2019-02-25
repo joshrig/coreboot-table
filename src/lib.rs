@@ -3,12 +3,11 @@
 use core::{mem, ptr};
 
 pub use self::cb64::Cb64;
-pub use self::mapper::{Mapper, PhysicalAddress, VirtualAddress};
-
 pub use self::forward::Forward;
 pub use self::framebuffer::Framebuffer;
 pub use self::header::Header;
-pub use self::memory::Memory;
+pub use self::mapper::{Mapper, PhysicalAddress, VirtualAddress};
+pub use self::memory::{Memory, MemoryRange, MemoryRangeKind};
 pub use self::record::{Record, RecordKind};
 
 mod cb64;
