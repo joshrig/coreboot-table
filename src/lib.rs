@@ -5,11 +5,11 @@ use core::{mem, ptr};
 pub use self::cb64::Cb64;
 pub use self::mapper::{Mapper, PhysicalAddress, VirtualAddress};
 
-use self::forward::Forward;
-use self::framebuffer::Framebuffer;
-use self::header::Header;
-use self::memory::Memory;
-use self::record::{Record, RecordKind};
+pub use self::forward::Forward;
+pub use self::framebuffer::Framebuffer;
+pub use self::header::Header;
+pub use self::memory::Memory;
+pub use self::record::{Record, RecordKind};
 
 mod cb64;
 mod forward;
