@@ -1,63 +1,12 @@
 extern crate coreboot_table;
 
-use std::{env, slice, str};
-use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom};
+use std::{env, str};
 
-use coreboot_table::{
-    Mapper, PhysicalAddress, VirtualAddress,
-    CmosRecord, Table,
-};
+use coreboot_table::{CmosRecord, Table};
 
-struct FileMapper {
-    file: File,
-}
+use mapper::FileMapper;
 
-impl FileMapper {
-    fn new(path: &str) -> io::Result<FileMapper> {
-        Ok(FileMapper {
-            file: File::open(path)?
-        })
-    }
-}
-
-impl Mapper for FileMapper {
-    unsafe fn map_aligned(&mut self, address: PhysicalAddress, size: usize) -> Result<VirtualAddress, &'static str> {
-        extern "C" {
-            fn memalign(alignment: usize, size: usize) -> usize;
-        }
-
-        let page_size = self.page_size();
-        let ptr = memalign(page_size, size);
-        if ptr == 0 {
-            return Err("Failed to allocate memory");
-        }
-
-        let data = slice::from_raw_parts_mut(
-            ptr as *mut u8,
-            size
-        );
-
-        self.file.seek(SeekFrom::Start(address.0 as u64)).map_err(|_| "Failed to seek file")?;
-        self.file.read(data).map_err(|_| "Failed to read file")?;
-
-        Ok(VirtualAddress(ptr))
-    }
-
-    unsafe fn unmap_aligned(&mut self, address: VirtualAddress) -> Result<(), &'static str> {
-        extern "C" {
-            fn free(ptr: usize);
-        }
-
-        free(address.0);
-
-        Ok(())
-    }
-
-    fn page_size(&self) -> usize {
-        4096
-    }
-}
+mod mapper;
 
 fn main() {
     let path = env::args()

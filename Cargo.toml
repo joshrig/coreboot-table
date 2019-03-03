@@ -6,4 +6,5 @@ edition = "2018"
 description = "Coreboot Table Parser"
 license = "MIT"
 
-[dependencies]
+[dev-dependencies]
+orbtk = "0.2"
