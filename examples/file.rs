@@ -2,11 +2,11 @@ extern crate coreboot_table;
 
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::slice;
+use std::{slice, str};
 
 use coreboot_table::{
     Mapper, PhysicalAddress, VirtualAddress,
-    Table,
+    CmosRecord, Table,
 };
 
 struct FileMapper {
@@ -64,9 +64,42 @@ fn main() {
 
     coreboot_table::tables(|table| {
         match table {
-            Table::Framebuffer(framebuffer) => println!("{:?}", framebuffer),
-            Table::Memory(memory) => println!("{:?}", memory.ranges()),
-            Table::Other(other) => println!("{:?}", other),
+            Table::Cmos(cmos) => {
+                println!("{:?}", cmos);
+                for record in cmos.records() {
+                    match record {
+                        CmosRecord::Entry(entry) => {
+                            println!(
+                                "    {:?}: {:?}",
+                                str::from_utf8(entry.name()),
+                                entry
+                            )
+                        },
+                        CmosRecord::Enum(enum_) => {
+                            println!(
+                                "    {:?}: {:?}",
+                                str::from_utf8(enum_.text()),
+                                enum_
+                            )
+                        },
+                        CmosRecord::Other(other) => {
+                            println!("    {:?}", other);
+                        },
+                    }
+                }
+            },
+            Table::Framebuffer(framebuffer) => {
+                println!("{:?}", framebuffer);
+            },
+            Table::Memory(memory) => {
+                println!("{:?}", memory);
+                for range in memory.ranges() {
+                    println!("    {:?}", range);
+                }
+            },
+            Table::Other(other) => {
+                println!("{:?}", other);
+            },
         }
         Ok(())
     }, &mut mapper).unwrap();

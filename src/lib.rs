@@ -3,6 +3,7 @@
 use core::{mem, ptr};
 
 pub use self::cb64::Cb64;
+pub use self::cmos::{Cmos, CmosEntry, CmosEnum, CmosRecord};
 pub use self::forward::Forward;
 pub use self::framebuffer::Framebuffer;
 pub use self::header::Header;
@@ -11,6 +12,7 @@ pub use self::memory::{Memory, MemoryRange, MemoryRangeKind};
 pub use self::record::{Record, RecordKind};
 
 mod cb64;
+mod cmos;
 mod forward;
 mod framebuffer;
 mod header;
@@ -20,6 +22,7 @@ mod record;
 
 #[derive(Debug)]
 pub enum Table<'a> {
+    Cmos(&'a Cmos),
     Framebuffer(&'a Framebuffer),
     Memory(&'a Memory),
     Other(&'a Record),
@@ -71,6 +74,11 @@ impl<'m, F: FnMut(Table) -> Result<(), &'static str>, M: Mapper> Env<'m, F, M> {
                 let record = unsafe { &*(record_address as *const Record) };
 
                 result = match record.kind {
+                    RecordKind::CmosOptionTable => {
+                        (self.callback)(Table::Cmos(
+                            unsafe { &*(record_address as *const Cmos) }
+                        ))
+                    },
                     RecordKind::Forward => {
                         let forward = unsafe { &*(record_address as *const Forward) };
                         self.forward(forward)
