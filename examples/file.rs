@@ -1,8 +1,8 @@
 extern crate coreboot_table;
 
+use std::{env, slice, str};
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::{slice, str};
 
 use coreboot_table::{
     Mapper, PhysicalAddress, VirtualAddress,
@@ -60,7 +60,12 @@ impl Mapper for FileMapper {
 }
 
 fn main() {
-    let mut mapper = FileMapper::new("res/example.bin").unwrap();
+    let path = env::args()
+        .skip(1)
+        .next()
+        .unwrap_or("res/example.bin".to_string());
+
+    let mut mapper = FileMapper::new(&path).unwrap();
 
     coreboot_table::tables(|table| {
         match table {
