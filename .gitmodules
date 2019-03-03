@@ -1,0 +1,4 @@
+[submodule "orbtk"]
+	path = orbtk
+	url = https://gitlab.redox-os.org/redox-os/orbtk.git
+	branch = 0.2

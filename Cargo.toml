@@ -7,4 +7,4 @@ description = "Coreboot Table Parser"
 license = "MIT"
 
 [dev-dependencies]
-orbtk = "0.2"
+orbtk = { path = "orbtk" }
