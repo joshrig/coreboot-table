@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use coreboot_table::{CmosRecord, Table};
 use orbtk::{ComboBox, Label, Place, Rect, Text, Window};
 
-use mapper::FileMapper;
+use self::mapper::FileMapper;
 
 mod mapper;
 
