@@ -6,5 +6,5 @@ edition = "2018"
 description = "Coreboot Table Parser"
 license = "MIT"
 
-[dev-dependencies]
-orbtk = { path = "orbtk" }
+# [dev-dependencies]
+# orbtk = { path = "orbtk" }
