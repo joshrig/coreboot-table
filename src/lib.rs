@@ -10,6 +10,7 @@ pub use self::header::Header;
 pub use self::mapper::{Mapper, PhysicalAddress, VirtualAddress};
 pub use self::memory::{Memory, MemoryRange, MemoryRangeKind};
 pub use self::record::{Record, RecordKind};
+pub use self::serial::Serial;
 
 mod cb64;
 mod cmos;
@@ -19,12 +20,14 @@ mod header;
 mod mapper;
 mod memory;
 mod record;
+mod serial;
 
 #[derive(Debug)]
 pub enum Table<'a> {
     Cmos(&'a Cmos),
     Framebuffer(&'a Framebuffer),
     Memory(&'a Memory),
+    Serial(&'a Serial),
     Other(&'a Record),
 }
 
@@ -88,6 +91,9 @@ impl<'m, F: FnMut(Table) -> Result<(), &'static str>, M: Mapper> Env<'m, F, M> {
                     )),
                     RecordKind::Memory => (self.callback)(Table::Memory(
                         unsafe { &*(record_address as *const Memory) }
+                    )),
+                    RecordKind::Serial => (self.callback)(Table::Serial (
+                        unsafe { &*(record_address as *const Serial) }
                     )),
                     _ => (self.callback)(Table::Other(record)),
                 };

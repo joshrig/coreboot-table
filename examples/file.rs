@@ -51,6 +51,9 @@ fn main() {
                     println!("    {:?}", range);
                 }
             },
+            Table::Serial(serial) => {
+                println!("{:?}", serial);
+            },
             Table::Other(other) => {
                 println!("{:?}", other);
             },
